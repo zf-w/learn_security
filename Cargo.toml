@@ -1,0 +1,12 @@
+[package]
+name = "learn_security"
+version = "0.0.20240630"
+edition = "2021"
+rust-version = "1.79.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sha3 = "0.10.8"
+chacha20poly1305 = "0.10.1"
+rpassword = "7.3.1"
