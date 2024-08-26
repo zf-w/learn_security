@@ -23,7 +23,7 @@ use chacha20poly1305::{
 use sha3::{digest::generic_array::GenericArray, Digest, Sha3_256};
 
 use zhifeng_security_util::{
-    pop_newline_from_string_mut_ref, print_tty, read_line_in_private, ByteString, SafeString,
+    pop_newline_from_string_mut_ref, read_line_in_private, ByteString, SafeString,
 };
 
 fn read_secret_key_line_in_private() -> Result<GenericArray<u8, U32>, Box<dyn Error>> {
@@ -54,10 +54,10 @@ fn encrypt(cipher: &ChaCha20Poly1305) -> Result<(), Box<dyn Error>> {
     let cipher_bytestring = ByteString::new(cipher_bytes);
     let nonce_bytestring = ByteString::try_from(nonce_bytes.bytes())?;
 
-    print_tty(format!(
+    println!(
         "[(Encrypted)](#{}{})\n",
         nonce_bytestring, cipher_bytestring
-    ))?;
+    );
 
     Ok(())
 }
@@ -83,7 +83,7 @@ fn decrypt(cipher: &ChaCha20Poly1305) -> Result<(), Box<dyn Error>> {
         }
     };
 
-    print_tty(format!("{}\n", String::from_utf8(plaintext_bytes)?))?;
+    println!("{}", String::from_utf8(plaintext_bytes)?);
     Ok(())
 }
 

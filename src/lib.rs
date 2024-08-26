@@ -23,7 +23,7 @@ pub use safe_string::SafeString;
 
 mod util;
 
-pub use util::{pop_newline_from_string_mut_ref, print_tty};
+pub use util::pop_newline_from_string_mut_ref;
 
 #[path = "read_line_in_private/read_line_in_private.rs"]
 mod read_line_in_private;
