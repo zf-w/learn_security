@@ -15,17 +15,35 @@
 
 mod byte_string;
 
+use std::error::Error;
+
 pub use byte_string::ByteString;
 
 mod safe_string;
 
+use chacha20poly1305::consts::U32;
 pub use safe_string::SafeString;
 
 mod util;
 
+use sha3::{digest::generic_array::GenericArray, Digest, Sha3_256};
 pub use util::pop_newline_from_string_mut_ref;
 
 #[path = "read_line_in_private/read_line_in_private.rs"]
 mod read_line_in_private;
-
 pub use read_line_in_private::read_line_in_private;
+
+#[path = "console_helper/console_helper_mod.rs"]
+mod console_helper_mod;
+pub use console_helper_mod::ConsoleHelper;
+
+pub fn read_secret_key_line_in_private() -> Result<GenericArray<u8, U32>, Box<dyn Error>> {
+    let secret_string = match read_line_in_private() {
+        Ok(secret_string) => secret_string,
+        Err(_) => return Err("Error when reading the secret key.".into()),
+    };
+
+    let mut hasher = Sha3_256::new();
+    hasher.update(secret_string.as_bytes());
+    Ok(hasher.finalize())
+}

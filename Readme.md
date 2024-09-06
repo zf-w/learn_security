@@ -1,8 +1,8 @@
 # Zhifeng's Computer Security Playground
 
-Starting to learn a bit of cryptography.
+Starting to learn a bit of cryptography and computer security.
 
-## AGPL-3.0-only License Notice
+## License Notice: AGPL-3.0-only
 
 Zhifeng's Security Utilities
 Copyright (C) 2024 Zhifeng Wang 王之枫

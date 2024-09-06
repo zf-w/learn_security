@@ -30,6 +30,10 @@ impl ByteString {
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
     }
+
+    pub fn leak_bytes_vec(self) -> Vec<u8> {
+        self.bytes
+    }
 }
 
 const UPPER_A_U8: u8 = 'A' as u8;

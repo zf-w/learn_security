@@ -17,26 +17,14 @@ use std::{error::Error, ffi::OsString, fs::File, io::Read, path::PathBuf, str::F
 
 use chacha20poly1305::{
     aead::{Aead, KeyInit},
-    consts::U32,
     ChaCha20Poly1305, Nonce,
 };
-use sha3::{digest::generic_array::GenericArray, Digest, Sha3_256};
+use sha3::digest::generic_array::GenericArray;
 
-use util::save_file;
-use zhifeng_security_util::read_line_in_private;
+use zhifeng_security_util::{read_secret_key_line_in_private, ByteString, ConsoleHelper};
 
 mod util;
-
-fn read_secret_key_line_in_private() -> Result<GenericArray<u8, U32>, Box<dyn Error>> {
-    let secret_string = match read_line_in_private() {
-        Ok(secret_string) => secret_string,
-        Err(_) => return Err("Error when reading the secret key.".into()),
-    };
-
-    let mut hasher = Sha3_256::new();
-    hasher.update(secret_string.as_bytes());
-    Ok(hasher.finalize())
-}
+use util::save_file;
 
 fn encrypt(
     cipher: &ChaCha20Poly1305,
@@ -75,15 +63,22 @@ const TO_I: usize = 3;
 const NONCE_BYTES_LEN: usize = 12;
 
 fn run(args_vec_ref: &Vec<String>) -> Result<(), Box<dyn Error>> {
+    let mut console_helper = ConsoleHelper::new()?;
+
+    console_helper.print_tty(b"Secret Key (will not show): ")?;
     let cipher_key_bytes = read_secret_key_line_in_private()?;
     let cipher = ChaCha20Poly1305::new(&cipher_key_bytes);
     let nonce_bytes: Nonce = GenericArray::clone_from_slice(&cipher_key_bytes[..NONCE_BYTES_LEN]); // 96-bits;
 
-    let encrypt_flag = if let Some(cmd_string_ref) = args_vec_ref.get(CMD_I) {
+    let (encrypt_flag, byte_string_flag) = if let Some(cmd_string_ref) = args_vec_ref.get(CMD_I) {
         if cmd_string_ref == "e" || cmd_string_ref == "encrypt" {
-            true
+            (true, false)
         } else if cmd_string_ref == "d" || cmd_string_ref == "decrypt" {
-            false
+            (false, false)
+        } else if cmd_string_ref == "es" {
+            (true, true)
+        } else if cmd_string_ref == "ds" {
+            (false, true)
         } else {
             return Err("It seems the first argument \"cmd\" is missing.... It's either \"e\" for encryption or \"d\" for decryption.".into());
         }
@@ -126,13 +121,26 @@ fn run(args_vec_ref: &Vec<String>) -> Result<(), Box<dyn Error>> {
         to_file_pathbuf
     };
 
-    let mut from_bytes: Vec<u8> = Vec::new();
+    let mut from_bytes_raw: Vec<u8> = Vec::new();
     let mut from_file = File::open(from_file_path_pathbuf)?;
-    from_file.read_to_end(&mut from_bytes)?;
+    from_file.read_to_end(&mut from_bytes_raw)?;
 
     let to_bytes = if encrypt_flag {
-        encrypt(&cipher, &from_bytes, nonce_bytes)?
+        let to_bytes_raw = encrypt(&cipher, &from_bytes_raw, nonce_bytes)?;
+        if byte_string_flag {
+            ByteString::new(to_bytes_raw)
+                .to_string()
+                .as_bytes()
+                .to_vec()
+        } else {
+            to_bytes_raw
+        }
     } else {
+        let from_bytes = if byte_string_flag {
+            ByteString::try_from(String::from_utf8(from_bytes_raw)?.as_str())?.leak_bytes_vec()
+        } else {
+            from_bytes_raw
+        };
         decrypt(&cipher, &from_bytes, nonce_bytes)?
     };
 
