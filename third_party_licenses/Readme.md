@@ -1,4 +1,4 @@
-# List of Third Party Softwares
+# Additional Third Party Softwares
 
 | Name              | License    | Crate.io                                  |
 | ----------------- | ---------- | ----------------------------------------- |

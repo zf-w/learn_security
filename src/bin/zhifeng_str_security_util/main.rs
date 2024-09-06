@@ -32,7 +32,22 @@ fn encrypt(
     md_flag: bool,
 ) -> Result<(), Box<dyn Error>> {
     let mut plain_string = SafeString::new();
-    std::io::stdin().read_line(&mut plain_string)?;
+    let mut curr_line_string = SafeString::new();
+    let mut empty_count: usize = 0;
+
+    while empty_count < 2 {
+        std::io::stdin().read_line(&mut curr_line_string)?;
+        pop_newline_from_string_mut_ref(&mut curr_line_string);
+        if curr_line_string.len() == 0 {
+            empty_count += 1;
+        } else {
+            empty_count = 0;
+        }
+        plain_string.push_str(&curr_line_string);
+        plain_string.push('\n');
+        curr_line_string.clear();
+    }
+
     pop_newline_from_string_mut_ref(&mut plain_string);
 
     let nonce_bytes: Nonce = ChaCha20Poly1305::generate_nonce(OsRng);
