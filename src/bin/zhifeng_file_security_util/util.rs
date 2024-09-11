@@ -16,7 +16,7 @@ pub fn save_file<P: AsRef<Path>>(path: P, buf: &[u8]) -> Result<(), Box<dyn Erro
         .into());
     };
 
-    let mut file = fs::File::create_new(path)?;
+    let mut file = fs::File::options().write(true).truncate(true).open(path)?;
     file.write_all(buf)?;
     Ok(())
 }

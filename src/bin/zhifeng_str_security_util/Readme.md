@@ -1,14 +1,17 @@
 # Line String Security Utility
 
-This program is a Command Line Tool for encrypting and decrypting one-line strings.
+This program is a simple Command Line Tool for encrypting and decrypting strings. Hopefully it will work securely,
 
 ## Example
 
 ```bash
-$ zhifeng_line_str_security_util
+$ zhifeng_str_security_util
 $ type in your secret key
 $ e
 $ lalala
+$
+$ 
+$ # Two empty enters to start encryption
 $ [(Encrypted)](#INBPECDIONLNDNKCJMLHLNCGEGCHMPHAEJPDOAIGOADJ-DEBFCEHCMMGFNBHAPCEFDBGG)
 $ d
 $ INBPECDIONLNDNKCJMLHLNCGEGCHMPHAEJPDOAIGOADJ-DEBFCEHCMMGFNBHAPCEFDBGG

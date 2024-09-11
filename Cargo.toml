@@ -1,6 +1,6 @@
 [package]
 name = "zhifeng_security_util"
-version = "0.0.20240709"
+version = "0.0.20240825"
 edition = "2021"
 license = "AGPL-3.0-only"
 rust-version = "1.79.0"
