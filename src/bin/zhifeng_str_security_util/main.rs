@@ -148,6 +148,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let mut cipher_key_bytes = read_secret_key_line_in_private()?;
     let mut cipher = <ChaCha20Poly1305 as chacha20poly1305::KeyInit>::new(&cipher_key_bytes);
 
+
     let mut line_string = SafeString::new();
 
     while let Ok(_) = std::io::stdin().read_line(&mut line_string) {
