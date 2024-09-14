@@ -13,13 +13,17 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{error::Error, io::Read};
+use std::{env, error::Error, io::Read};
 
 use chacha20poly1305::{
     aead::{Aead, AeadCore, OsRng},
+    consts::U32,
     ChaCha20Poly1305, Nonce,
 };
-use sha3::digest::generic_array::GenericArray;
+use sha3::{
+    digest::{generic_array::GenericArray, DynDigest},
+    Digest, Sha3_256,
+};
 
 use zhifeng_security_util::{
     pop_newline_from_string_mut_ref, read_secret_key_line_in_private, ByteString, ConsoleHelper,
@@ -105,22 +109,65 @@ fn decrypt(
     Ok(())
 }
 
+fn hash(
+    cipher_key_bytes: &GenericArray<u8, U32>,
+    console_helper_mut_ref: &mut ConsoleHelper,
+) -> Result<(), Box<dyn Error>> {
+    let mut hasher = Sha3_256::new();
+    DynDigest::update(&mut hasher, cipher_key_bytes);
+    let mut input_string = SafeString::new();
+    std::io::stdin().read_line(&mut input_string)?;
+    pop_newline_from_string_mut_ref(&mut input_string);
+    for part_str_ref in input_string.split(' ') {
+        if part_str_ref.is_empty() {
+            continue;
+        }
+        DynDigest::update(&mut hasher, part_str_ref.as_bytes());
+    }
+    let hash_res_bytes_vec = hasher.finalize().to_vec();
+    let output_bytestring = ByteString::new(hash_res_bytes_vec);
+    console_helper_mut_ref.print_tty(output_bytestring.to_string().as_bytes())?;
+    console_helper_mut_ref.print_tty(b"\n")?;
+    Ok(())
+}
+
+const INPUT_SECRET_KEY_PROMPT_STR_REF: &'static [u8] = b"Secret Key (will not show): ";
+
 fn run() -> Result<(), Box<dyn Error>> {
     let mut console_helper = ConsoleHelper::new()?;
-    console_helper.print_tty(b"Secret Key (will not show): ")?;
-    let cipher_key_bytes = read_secret_key_line_in_private()?;
-    let cipher = <ChaCha20Poly1305 as chacha20poly1305::KeyInit>::new(&cipher_key_bytes);
+    let args: Vec<String> = env::args().collect();
+    if let Some(first_arg_ref) = args.get(1) {
+        if first_arg_ref == "-v" || first_arg_ref == "--version" {
+            console_helper.print_tty(b"version: ")?;
+            console_helper.print_tty(env!("CARGO_PKG_VERSION").as_bytes())?;
+            return Ok(());
+        }
+    }
+
+    console_helper.print_tty(INPUT_SECRET_KEY_PROMPT_STR_REF)?;
+    let mut cipher_key_bytes = read_secret_key_line_in_private()?;
+    let mut cipher = <ChaCha20Poly1305 as chacha20poly1305::KeyInit>::new(&cipher_key_bytes);
+
 
     let mut line_string = SafeString::new();
 
     while let Ok(_) = std::io::stdin().read_line(&mut line_string) {
         pop_newline_from_string_mut_ref(&mut line_string);
-        if *line_string == "e" {
+        if *line_string == "d" || *line_string == "decrypt" {
+            if let Err(e) = decrypt(&cipher, &mut console_helper) {
+                console_helper.print_tty(e.to_string().as_bytes())?;
+                console_helper.print_tty(b"\n")?;
+            }
+        } else if *line_string == "e" || *line_string == "encrypt" {
             encrypt(&cipher, &mut console_helper, false)?;
-        } else if *line_string == "mde" {
+        } else if *line_string == "h" || *line_string == "hash" {
+            hash(&cipher_key_bytes, &mut console_helper)?;
+        } else if *line_string == "mde" || *line_string == "markdown_encrypt" {
             encrypt(&cipher, &mut console_helper, true)?;
-        } else if *line_string == "d" {
-            decrypt(&cipher, &mut console_helper)?;
+        } else if *line_string == "s" || *line_string == "switch" {
+            console_helper.print_tty(INPUT_SECRET_KEY_PROMPT_STR_REF)?;
+            cipher_key_bytes = read_secret_key_line_in_private()?;
+            cipher = <ChaCha20Poly1305 as chacha20poly1305::KeyInit>::new(&cipher_key_bytes);
         } else {
             return Ok(());
         }
