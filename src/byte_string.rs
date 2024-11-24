@@ -13,10 +13,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{
-    fmt::{Display, Write},
-    io::Bytes,
-};
+use std::fmt::{Display, Write};
 
 pub struct ByteString {
     bytes: Vec<u8>,
@@ -36,7 +33,7 @@ impl ByteString {
     }
 }
 
-const UPPER_A_U8: u8 = 'A' as u8;
+const UPPER_A_U8: u8 = b'A';
 
 impl Display for ByteString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -78,13 +75,12 @@ impl TryFrom<&str> for ByteString {
     }
 }
 
-impl TryFrom<Bytes<&[u8]>> for ByteString {
+impl TryFrom<&[u8]> for ByteString {
     type Error = std::io::Error;
-    fn try_from(value: Bytes<&[u8]>) -> Result<Self, Self::Error> {
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut bytes: Vec<u8> = Vec::new();
-        for byte_res in value {
-            let byte = byte_res?;
-            bytes.push(byte);
+        for byte_ref in value {
+            bytes.push(*byte_ref);
         }
         Ok(Self { bytes })
     }

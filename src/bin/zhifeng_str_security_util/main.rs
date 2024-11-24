@@ -13,35 +13,43 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{env, error::Error, io::Read};
+use std::{env, error::Error};
 
-use chacha20poly1305::{
-    aead::{Aead, AeadCore, OsRng},
-    consts::U32,
-    ChaCha20Poly1305, Nonce,
-};
+use chacha20poly1305::consts::U32;
+
 use sha3::{
     digest::{generic_array::GenericArray, DynDigest},
     Digest, Sha3_256,
 };
 
 use zhifeng_security_util::{
-    pop_newline_from_string_mut_ref, read_secret_key_line_in_private, ByteString, ConsoleHelper,
+    ciphers_mod::CipherV20241124, io::ConsoleHelper, read_secret_key_line_in_private, ByteString,
     SafeString,
 };
 
+fn pop_newlines_from_string_mut_ref(string_mut_ref: &mut String) {
+    while string_mut_ref.ends_with('\n') {
+        string_mut_ref.pop();
+        if string_mut_ref.ends_with('\r') {
+            string_mut_ref.pop();
+        }
+    }
+}
+
+const MAGIC_CAPACITY: usize = 128;
+
 fn encrypt(
-    cipher: &ChaCha20Poly1305,
+    cipher: &CipherV20241124,
     console_helper_mut_ref: &mut ConsoleHelper,
     md_flag: bool,
 ) -> Result<(), Box<dyn Error>> {
-    let mut plain_string = SafeString::new();
-    let mut curr_line_string = SafeString::new();
+    let mut plain_string = SafeString::new_with_capacity(MAGIC_CAPACITY);
+    let mut curr_line_string = SafeString::new_with_capacity(MAGIC_CAPACITY);
     let mut empty_count: usize = 0;
 
     while empty_count < 2 {
         std::io::stdin().read_line(&mut curr_line_string)?;
-        pop_newline_from_string_mut_ref(&mut curr_line_string);
+        pop_newlines_from_string_mut_ref(&mut curr_line_string);
         if curr_line_string.len() == 0 {
             empty_count += 1;
         } else {
@@ -52,11 +60,9 @@ fn encrypt(
         curr_line_string.clear();
     }
 
-    pop_newline_from_string_mut_ref(&mut plain_string);
+    pop_newlines_from_string_mut_ref(&mut plain_string);
 
-    let nonce_bytes: Nonce = ChaCha20Poly1305::generate_nonce(OsRng);
-
-    let cipher_bytes = match cipher.encrypt(&nonce_bytes, plain_string.as_bytes()) {
+    let cipher_bytes = match cipher.encrypt(plain_string.as_bytes()) {
         Ok(bytes_vec) => bytes_vec,
         Err(err) => {
             return Err(format!("Error during encryption: {}", err).into());
@@ -64,47 +70,37 @@ fn encrypt(
     };
 
     let cipher_bytestring = ByteString::new(cipher_bytes);
-    let nonce_bytestring = ByteString::try_from(nonce_bytes.bytes())?;
 
     if md_flag {
         console_helper_mut_ref.print_tty(b"[(Encrypted)](#")?;
-        console_helper_mut_ref.print_tty(&nonce_bytestring.to_string().as_bytes())?;
-        console_helper_mut_ref.print_tty(&cipher_bytestring.to_string().as_bytes())?;
+        console_helper_mut_ref.print_tty(cipher_bytestring.to_string().as_bytes())?;
         console_helper_mut_ref.print_tty(b")\n")?;
     } else {
-        console_helper_mut_ref.print_tty(&nonce_bytestring.to_string().as_bytes())?;
-        console_helper_mut_ref.print_tty(&cipher_bytestring.to_string().as_bytes())?;
+        console_helper_mut_ref.print_tty(cipher_bytestring.to_string().as_bytes())?;
         console_helper_mut_ref.print_tty(b"\n")?;
     }
 
     Ok(())
 }
 
-const NONCE_BYTES_LEN: usize = 12;
-
 fn decrypt(
-    cipher: &ChaCha20Poly1305,
+    cipher: &CipherV20241124,
     console_helper_mut_ref: &mut ConsoleHelper,
 ) -> Result<(), Box<dyn Error>> {
-    let mut info_string = SafeString::new();
+    let mut info_string = SafeString::new_with_capacity(MAGIC_CAPACITY);
     std::io::stdin().read_line(&mut info_string)?;
-    pop_newline_from_string_mut_ref(&mut info_string);
+    pop_newlines_from_string_mut_ref(&mut info_string);
 
-    let seq_i = NONCE_BYTES_LEN * 2;
+    let cipher_bytestring = ByteString::try_from(info_string.as_str())?;
 
-    let cipher_bytestring = ByteString::try_from(&info_string[seq_i..])?;
-    let nonce_bytestring = ByteString::try_from(&info_string[..seq_i])?;
-
-    let nonce: Nonce = GenericArray::clone_from_slice(nonce_bytestring.as_bytes());
-
-    let plaintext_bytes = match cipher.decrypt(&nonce, cipher_bytestring.as_bytes()) {
+    let plaintext_bytes = match cipher.decrypt(cipher_bytestring.as_bytes()) {
         Ok(bytes) => bytes,
         Err(err) => {
             return Err(format!("Error when decrypting: {}", err).into());
         }
     };
 
-    console_helper_mut_ref.print_tty(&plaintext_bytes)?;
+    console_helper_mut_ref.print_tty(plaintext_bytes.as_slice())?;
     console_helper_mut_ref.print_tty(b"\n")?;
     Ok(())
 }
@@ -115,9 +111,10 @@ fn hash(
 ) -> Result<(), Box<dyn Error>> {
     let mut hasher = Sha3_256::new();
     DynDigest::update(&mut hasher, cipher_key_bytes);
-    let mut input_string = SafeString::new();
+    let mut input_string = SafeString::new_with_capacity(MAGIC_CAPACITY);
+
     std::io::stdin().read_line(&mut input_string)?;
-    pop_newline_from_string_mut_ref(&mut input_string);
+    pop_newlines_from_string_mut_ref(&mut input_string);
     for part_str_ref in input_string.split(' ') {
         if part_str_ref.is_empty() {
             continue;
@@ -131,7 +128,7 @@ fn hash(
     Ok(())
 }
 
-const INPUT_SECRET_KEY_PROMPT_STR_REF: &'static [u8] = b"Secret Key (will not show): ";
+const INPUT_SECRET_KEY_PROMPT_STR_REF: &[u8] = b"Passphrase: ";
 
 fn run() -> Result<(), Box<dyn Error>> {
     let mut console_helper = ConsoleHelper::new()?;
@@ -146,13 +143,12 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     console_helper.print_tty(INPUT_SECRET_KEY_PROMPT_STR_REF)?;
     let mut cipher_key_bytes = read_secret_key_line_in_private()?;
-    let mut cipher = <ChaCha20Poly1305 as chacha20poly1305::KeyInit>::new(&cipher_key_bytes);
+    let mut cipher = CipherV20241124::new_wtih_cipher_key_bytes(cipher_key_bytes);
 
+    let mut line_string = SafeString::new_with_capacity(MAGIC_CAPACITY);
 
-    let mut line_string = SafeString::new();
-
-    while let Ok(_) = std::io::stdin().read_line(&mut line_string) {
-        pop_newline_from_string_mut_ref(&mut line_string);
+    while std::io::stdin().read_line(&mut line_string).is_ok() {
+        pop_newlines_from_string_mut_ref(&mut line_string);
         if *line_string == "d" || *line_string == "decrypt" {
             if let Err(e) = decrypt(&cipher, &mut console_helper) {
                 console_helper.print_tty(e.to_string().as_bytes())?;
@@ -167,7 +163,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         } else if *line_string == "s" || *line_string == "switch" {
             console_helper.print_tty(INPUT_SECRET_KEY_PROMPT_STR_REF)?;
             cipher_key_bytes = read_secret_key_line_in_private()?;
-            cipher = <ChaCha20Poly1305 as chacha20poly1305::KeyInit>::new(&cipher_key_bytes);
+            cipher = CipherV20241124::new_wtih_cipher_key_bytes(cipher_key_bytes);
         } else {
             return Ok(());
         }

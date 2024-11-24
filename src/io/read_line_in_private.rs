@@ -2,29 +2,12 @@
 
 use crate::SafeString;
 
-#[cfg(target_family = "wasm")]
-mod wasm {
-    use std::io::{self, BufRead};
-
-    use crate::{pop_newline_from_string_mut_ref, SafeString};
-    /// Reads a line from a given file descriptor
-    fn read_line_from_fd_with_hidden_input(
-        reader: &mut impl BufRead,
-    ) -> std::io::Result<SafeString> {
-        let mut line = super::SafeString::new();
-
-        reader.read_line(&mut line)?;
-        pop_newline_from_string_mut_ref(&mut line);
-
-        Ok(line)
-    }
-
-    /// Reads a line from the TTY
-    pub fn read_line() -> std::io::Result<SafeString> {
-        let tty = std::fs::File::open("/dev/tty")?;
-        let mut reader = io::BufReader::new(tty);
-
-        read_line_from_fd_with_hidden_input(&mut reader)
+fn pop_newlines_from_string_mut_ref(string_mut_ref: &mut String) {
+    while string_mut_ref.ends_with('\n') {
+        string_mut_ref.pop();
+        if string_mut_ref.ends_with('\r') {
+            string_mut_ref.pop();
+        }
     }
 }
 
@@ -101,7 +84,7 @@ mod unix {
 
         std::mem::drop(hidden_input);
 
-        pop_newline_from_string_mut_ref(&mut line);
+        super::pop_newlines_from_string_mut_ref(&mut line);
         Ok(line)
     }
 
@@ -133,7 +116,7 @@ mod windows {
         },
     };
 
-    use crate::{util::pop_newline_from_string_mut_ref, SafeString};
+    use crate::SafeString;
 
     struct HiddenInput {
         mode: u32,
@@ -173,22 +156,18 @@ mod windows {
         reader: &mut impl BufRead,
         handle: HANDLE,
     ) -> io::Result<SafeString> {
-        let mut line = super::SafeString::new();
+        let mut line = super::SafeString::new_with_capacity(128);
 
         let hidden_input = HiddenInput::new(handle)?;
 
-        let reader_return = reader.read_line(&mut line);
+        reader.read_line(&mut line)?;
 
         // Newline for windows which otherwise prints on the same line.
         println!();
 
-        if reader_return.is_err() {
-            return Err(reader_return.unwrap_err());
-        }
-
         std::mem::drop(hidden_input);
 
-        pop_newline_from_string_mut_ref(&mut line);
+        super::pop_newlines_from_string_mut_ref(&mut line);
 
         Ok(line)
     }
@@ -218,7 +197,6 @@ mod windows {
 
 #[cfg(target_family = "unix")]
 pub use unix::read_line_in_private;
-#[cfg(target_family = "wasm")]
-pub use wasm::read_line_in_private;
+
 #[cfg(target_family = "windows")]
 pub use windows::read_line_in_private;

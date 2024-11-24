@@ -10,9 +10,9 @@ pub struct SafeString {
 }
 
 impl SafeString {
-    pub fn new() -> Self {
+    pub fn new_with_capacity(len: usize) -> Self {
         Self {
-            inner: String::new(),
+            inner: String::with_capacity(len),
         }
     }
 

@@ -21,7 +21,7 @@ use chacha20poly1305::{
 };
 use sha3::digest::generic_array::GenericArray;
 
-use zhifeng_security_util::{read_secret_key_line_in_private, ByteString, ConsoleHelper};
+use zhifeng_security_util::{io::ConsoleHelper, read_secret_key_line_in_private, ByteString};
 
 mod util;
 use util::save_file;
@@ -62,7 +62,7 @@ const TO_I: usize = 3;
 
 const NONCE_BYTES_LEN: usize = 12;
 
-fn run(args_vec_ref: &Vec<String>) -> Result<(), Box<dyn Error>> {
+fn run(args_vec_ref: &[String]) -> Result<(), Box<dyn Error>> {
     let mut console_helper = ConsoleHelper::new()?;
 
     console_helper.print_tty(b"Secret Key (will not show): ")?;
