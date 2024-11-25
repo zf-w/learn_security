@@ -1,4 +1,6 @@
-# Read Line Private
+# Input and Ouput Utility
+
+## Read Line Private
 
 This module is derived from crate "rpassword" under Apache License Version 2.0.
 

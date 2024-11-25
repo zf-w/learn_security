@@ -1,30 +1,11 @@
 // The Code Was Adapted from Rust Crate "rpassword = 7.3.1"
 
-use crate::SafeString;
-
-#[cfg(target_family = "wasm")]
-mod wasm {
-    use std::io::{self, BufRead};
-
-    use crate::{pop_newline_from_string_mut_ref, SafeString};
-    /// Reads a line from a given file descriptor
-    fn read_line_from_fd_with_hidden_input(
-        reader: &mut impl BufRead,
-    ) -> std::io::Result<SafeString> {
-        let mut line = super::SafeString::new();
-
-        reader.read_line(&mut line)?;
-        pop_newline_from_string_mut_ref(&mut line);
-
-        Ok(line)
-    }
-
-    /// Reads a line from the TTY
-    pub fn read_line() -> std::io::Result<SafeString> {
-        let tty = std::fs::File::open("/dev/tty")?;
-        let mut reader = io::BufReader::new(tty);
-
-        read_line_from_fd_with_hidden_input(&mut reader)
+fn pop_newlines_from_string_mut_ref(string_mut_ref: &mut String) {
+    while string_mut_ref.ends_with('\n') {
+        string_mut_ref.pop();
+        if string_mut_ref.ends_with('\r') {
+            string_mut_ref.pop();
+        }
     }
 }
 
@@ -37,7 +18,7 @@ mod unix {
         mem,
     };
 
-    use crate::{pop_newline_from_string_mut_ref, SafeString};
+    use crate::safely_read_line_from_buf_reader;
 
     struct HiddenInput {
         fd: i32,
@@ -89,24 +70,23 @@ mod unix {
     }
 
     /// Reads a line from a given file descriptor
+    #[inline]
     fn read_line_from_fd_with_hidden_input(
         reader: &mut impl BufRead,
         fd: i32,
-    ) -> std::io::Result<SafeString> {
-        let mut line = super::SafeString::new();
-
+    ) -> std::io::Result<String> {
         let hidden_input = HiddenInput::new(fd)?;
 
-        reader.read_line(&mut line)?;
+        let mut line_string = safely_read_line_from_buf_reader(reader)?;
 
         std::mem::drop(hidden_input);
 
-        pop_newline_from_string_mut_ref(&mut line);
-        Ok(line)
+        super::pop_newlines_from_string_mut_ref(&mut line_string);
+        Ok(line_string)
     }
 
     /// Reads a line from the TTY
-    pub fn read_line_in_private() -> std::io::Result<SafeString> {
+    pub fn read_line_in_private() -> std::io::Result<String> {
         let tty = std::fs::File::open("/dev/tty")?;
         let fd = tty.as_raw_fd();
         let mut reader = io::BufReader::new(tty);
@@ -133,7 +113,7 @@ mod windows {
         },
     };
 
-    use crate::{util::pop_newline_from_string_mut_ref, SafeString};
+    use crate::safely_read_line_from_buf_reader;
 
     struct HiddenInput {
         mode: u32,
@@ -169,32 +149,27 @@ mod windows {
     }
 
     /// Reads a line from a given file handle
+    #[inline]
     fn read_line_from_handle_with_hidden_input(
         reader: &mut impl BufRead,
         handle: HANDLE,
-    ) -> io::Result<SafeString> {
-        let mut line = super::SafeString::new();
-
+    ) -> io::Result<String> {
         let hidden_input = HiddenInput::new(handle)?;
 
-        let reader_return = reader.read_line(&mut line);
+        let mut line_string = safely_read_line_from_buf_reader(reader)?;
 
         // Newline for windows which otherwise prints on the same line.
         println!();
 
-        if reader_return.is_err() {
-            return Err(reader_return.unwrap_err());
-        }
-
         std::mem::drop(hidden_input);
 
-        pop_newline_from_string_mut_ref(&mut line);
+        super::pop_newlines_from_string_mut_ref(&mut line_string);
 
-        Ok(line)
+        Ok(line_string)
     }
 
     /// Reads a line from the TTY
-    pub fn read_line_in_private() -> std::io::Result<SafeString> {
+    pub fn read_line_in_private() -> std::io::Result<String> {
         let handle = unsafe {
             CreateFileA(
                 b"CONIN$\x00".as_ptr() as PCSTR,
@@ -216,9 +191,30 @@ mod windows {
     }
 }
 
+use sha3::Sha3_256;
 #[cfg(target_family = "unix")]
 pub use unix::read_line_in_private;
-#[cfg(target_family = "wasm")]
-pub use wasm::read_line_in_private;
+
 #[cfg(target_family = "windows")]
 pub use windows::read_line_in_private;
+
+/// Read a key in private.
+pub fn read_secret_key_from_line_in_private() -> Result<
+    sha3::digest::generic_array::GenericArray<
+        u8,
+        sha3::digest::generic_array::typenum::consts::U32,
+    >,
+    &'static str,
+> {
+    let mut secret_string = match crate::io_mod::read_line_in_private() {
+        Ok(secret_string) => secret_string,
+        Err(_) => return Err("Error when reading the secret key."),
+    };
+
+    let mut hasher = <Sha3_256 as sha3::Digest>::new();
+    sha3::Digest::update(&mut hasher, secret_string.as_bytes());
+    crate::write_volatile_to_all_elem_of_iter_to_default(unsafe {
+        secret_string.as_bytes_mut().iter_mut()
+    });
+    Ok(sha3::Digest::finalize(hasher))
+}
