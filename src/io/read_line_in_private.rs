@@ -18,7 +18,7 @@ mod unix {
         mem,
     };
 
-    use crate::{pop_newline_from_string_mut_ref, SafeString};
+    use crate::safely_read_line_from_buf_reader;
 
     struct HiddenInput {
         fd: i32,
@@ -77,12 +77,12 @@ mod unix {
     ) -> std::io::Result<String> {
         let hidden_input = HiddenInput::new(fd)?;
 
-        let line_string = safely_read_line_from_buf_reader(reader)?;
+        let mut line_string = safely_read_line_from_buf_reader(reader)?;
 
         std::mem::drop(hidden_input);
 
         super::pop_newlines_from_string_mut_ref(&mut line_string);
-        Ok(line)
+        Ok(line_string)
     }
 
     /// Reads a line from the TTY
