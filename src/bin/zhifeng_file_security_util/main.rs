@@ -15,60 +15,23 @@
 
 use std::{error::Error, ffi::OsString, fs::File, io::Read, path::PathBuf, str::FromStr};
 
-use chacha20poly1305::{
-    aead::{Aead, KeyInit},
-    ChaCha20Poly1305, Nonce,
-};
-use sha3::digest::generic_array::GenericArray;
-
 use zhifeng_security_util::io_mod::{read_secret_key_from_line_in_private, ConsoleHelper};
 
 mod util;
 use util::save_file;
 
-fn encrypt(
-    cipher: &ChaCha20Poly1305,
-    plain_bytes: &[u8],
-    nonce_bytes: Nonce,
-) -> Result<Vec<u8>, Box<dyn Error>> {
-    let cipher_bytes = match cipher.encrypt(&nonce_bytes, plain_bytes) {
-        Ok(bytes_vec) => bytes_vec,
-        Err(err) => {
-            return Err(format!("Error during encryption: {}", err).into());
-        }
-    };
-
-    Ok(cipher_bytes)
-}
-
-fn decrypt(
-    cipher: &ChaCha20Poly1305,
-    cipher_bytes: &[u8],
-    nonce_bytes: Nonce,
-) -> Result<Vec<u8>, Box<dyn Error>> {
-    let plain_bytes = match cipher.decrypt(&nonce_bytes, cipher_bytes) {
-        Ok(bytes_vec) => bytes_vec,
-        Err(err) => {
-            return Err(format!("Error during encryption: {}", err).into());
-        }
-    };
-
-    Ok(plain_bytes)
-}
-
 const CMD_I: usize = 1;
 const FROM_I: usize = 2;
 const TO_I: usize = 3;
-
-const NONCE_BYTES_LEN: usize = 12;
 
 fn run(args_vec_ref: &[String]) -> Result<(), Box<dyn Error>> {
     let mut console_helper = ConsoleHelper::new()?;
 
     console_helper.print_tty(b"Passphrase: ")?;
     let cipher_key_bytes = read_secret_key_from_line_in_private()?;
-    let cipher = ChaCha20Poly1305::new(&cipher_key_bytes);
-    let nonce_bytes: Nonce = GenericArray::clone_from_slice(&cipher_key_bytes[..NONCE_BYTES_LEN]); // 96-bits;
+    let cipher = zhifeng_security_util::ciphers_mod::CipherV20241124::new_wtih_cipher_key_bytes(
+        cipher_key_bytes,
+    );
 
     let (encrypt_flag, byte_string_flag) = if let Some(cmd_string_ref) = args_vec_ref.get(CMD_I) {
         if cmd_string_ref == "e" || cmd_string_ref == "encrypt" {
@@ -126,7 +89,7 @@ fn run(args_vec_ref: &[String]) -> Result<(), Box<dyn Error>> {
     from_file.read_to_end(&mut from_bytes_raw)?;
 
     let to_bytes = if encrypt_flag {
-        let to_bytes_raw = encrypt(&cipher, &from_bytes_raw, nonce_bytes)?;
+        let to_bytes_raw = cipher.encrypt(from_bytes_raw.as_slice())?;
         if byte_string_flag {
             zhifeng_security_util::byte_util_mod::make_letter_byte_string_from_bytes_ref(
                 to_bytes_raw.as_slice(),
@@ -143,7 +106,7 @@ fn run(args_vec_ref: &[String]) -> Result<(), Box<dyn Error>> {
         } else {
             from_bytes_raw
         };
-        decrypt(&cipher, &from_bytes, nonce_bytes)?
+        cipher.decrypt(from_bytes.as_slice())?
     };
 
     save_file(to_file_path_pathbuf, &to_bytes)?;
