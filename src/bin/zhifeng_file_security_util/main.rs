@@ -21,9 +21,7 @@ use chacha20poly1305::{
 };
 use sha3::digest::generic_array::GenericArray;
 
-use zhifeng_security_util::{
-    io::read_secret_key_from_line_in_private, io::ConsoleHelper, ByteString,
-};
+use zhifeng_security_util::io_mod::{read_secret_key_from_line_in_private, ConsoleHelper};
 
 mod util;
 use util::save_file;
@@ -130,16 +128,18 @@ fn run(args_vec_ref: &[String]) -> Result<(), Box<dyn Error>> {
     let to_bytes = if encrypt_flag {
         let to_bytes_raw = encrypt(&cipher, &from_bytes_raw, nonce_bytes)?;
         if byte_string_flag {
-            ByteString::new(to_bytes_raw)
-                .to_string()
-                .as_bytes()
-                .to_vec()
+            zhifeng_security_util::byte_util_mod::make_letter_byte_string_from_bytes_ref(
+                to_bytes_raw.as_slice(),
+            )
+            .into_bytes()
         } else {
             to_bytes_raw
         }
     } else {
         let from_bytes = if byte_string_flag {
-            ByteString::try_from(String::from_utf8(from_bytes_raw)?.as_str())?.leak_bytes_vec()
+            zhifeng_security_util::byte_util_mod::make_byte_vec_from_letter_str_ref(
+                String::from_utf8(from_bytes_raw)?.as_str(),
+            )?
         } else {
             from_bytes_raw
         };

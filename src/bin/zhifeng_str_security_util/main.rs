@@ -24,8 +24,8 @@ use sha3::{
 
 use zhifeng_security_util::{
     ciphers_mod::CipherV20241124,
-    io::{read_secret_key_from_line_in_private, ConsoleHelper},
-    write_volatile_to_all_elem_of_iter_to_default, ByteString,
+    io_mod::{read_secret_key_from_line_in_private, ConsoleHelper},
+    write_volatile_to_all_elem_of_iter_to_default,
 };
 
 fn pop_newlines_from_string_mut_ref(string_mut_ref: &mut String) {
@@ -78,14 +78,15 @@ fn encrypt(
         plain_string.as_bytes_mut().iter_mut()
     });
 
-    let cipher_bytestring = ByteString::new(cipher_bytes);
+    let cipher_string =
+        zhifeng_security_util::byte_util_mod::make_letter_byte_string_from_bytes_ref(&cipher_bytes);
 
     if md_flag {
         console_helper_mut_ref.print_tty(b"[(Encrypted)](#")?;
-        console_helper_mut_ref.print_tty(cipher_bytestring.to_string().as_bytes())?;
+        console_helper_mut_ref.print_tty(cipher_string.to_string().as_bytes())?;
         console_helper_mut_ref.print_tty(b")\n")?;
     } else {
-        console_helper_mut_ref.print_tty(cipher_bytestring.to_string().as_bytes())?;
+        console_helper_mut_ref.print_tty(cipher_string.to_string().as_bytes())?;
         console_helper_mut_ref.print_tty(b"\n")?;
     }
 
@@ -100,9 +101,11 @@ fn decrypt(
     std::io::stdin().read_line(&mut info_string)?;
     pop_newlines_from_string_mut_ref(&mut info_string);
 
-    let cipher_bytestring = ByteString::try_from(info_string.as_str())?;
+    let cipher_byte_vec = zhifeng_security_util::byte_util_mod::make_byte_vec_from_letter_str_ref(
+        info_string.as_str(),
+    )?;
 
-    let mut plaintext_bytes = match cipher.decrypt(cipher_bytestring.as_bytes()) {
+    let mut plaintext_bytes = match cipher.decrypt(cipher_byte_vec.as_slice()) {
         Ok(bytes) => bytes,
         Err(err) => {
             return Err(format!("Error when decrypting: {}", err).into());
@@ -134,8 +137,11 @@ fn hash(
         Digest::update(&mut hasher, part_str_ref.as_bytes());
     }
     let hash_res_bytes_vec = hasher.finalize().to_vec();
-    let output_bytestring = ByteString::new(hash_res_bytes_vec);
-    console_helper_mut_ref.print_tty(output_bytestring.to_string().as_bytes())?;
+    let output_string =
+        zhifeng_security_util::byte_util_mod::make_letter_byte_string_from_bytes_ref(
+            hash_res_bytes_vec.as_slice(),
+        );
+    console_helper_mut_ref.print_tty(output_string.to_string().as_bytes())?;
     console_helper_mut_ref.print_tty(b"\n")?;
     Ok(())
 }

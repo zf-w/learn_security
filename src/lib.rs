@@ -13,14 +13,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod byte_string;
-
 use std::io::BufRead;
 
-#[path = "./io/io.rs"]
-pub mod io;
+#[path = "byte_util.rs"]
+pub mod byte_util_mod;
 
-pub use byte_string::ByteString;
+#[path = "./io/io.rs"]
+pub mod io_mod;
 
 #[path = "ciphers/ciphers.rs"]
 pub mod ciphers_mod;

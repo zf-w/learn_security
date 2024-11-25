@@ -206,7 +206,7 @@ pub fn read_secret_key_from_line_in_private() -> Result<
     >,
     &'static str,
 > {
-    let mut secret_string = match crate::io::read_line_in_private() {
+    let mut secret_string = match crate::io_mod::read_line_in_private() {
         Ok(secret_string) => secret_string,
         Err(_) => return Err("Error when reading the secret key."),
     };
