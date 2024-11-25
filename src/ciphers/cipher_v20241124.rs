@@ -28,25 +28,7 @@ const VERSION_BYTES: [u8; 4] = [0x01, 0x34, 0xda, 0xe4];
 
 type CipherKeyBytes = sha3::digest::generic_array::GenericArray<
     u8,
-    sha3::digest::typenum::UInt<
-        sha3::digest::typenum::UInt<
-            sha3::digest::typenum::UInt<
-                sha3::digest::typenum::UInt<
-                    sha3::digest::typenum::UInt<
-                        sha3::digest::typenum::UInt<
-                            sha3::digest::typenum::UTerm,
-                            chacha20poly1305::consts::B1,
-                        >,
-                        chacha20poly1305::consts::B0,
-                    >,
-                    chacha20poly1305::consts::B0,
-                >,
-                chacha20poly1305::consts::B0,
-            >,
-            chacha20poly1305::consts::B0,
-        >,
-        chacha20poly1305::consts::B0,
-    >,
+    sha3::digest::generic_array::typenum::consts::U32,
 >;
 
 impl CipherV20241124 {

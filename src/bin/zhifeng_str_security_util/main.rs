@@ -23,8 +23,9 @@ use sha3::{
 };
 
 use zhifeng_security_util::{
-    ciphers_mod::CipherV20241124, io::ConsoleHelper, read_secret_key_line_in_private, ByteString,
-    SafeString,
+    ciphers_mod::CipherV20241124,
+    io::{read_secret_key_from_line_in_private, ConsoleHelper},
+    write_volatile_to_all_elem_of_iter_to_default, ByteString,
 };
 
 fn pop_newlines_from_string_mut_ref(string_mut_ref: &mut String) {
@@ -43,21 +44,25 @@ fn encrypt(
     console_helper_mut_ref: &mut ConsoleHelper,
     md_flag: bool,
 ) -> Result<(), Box<dyn Error>> {
-    let mut plain_string = SafeString::new_with_capacity(MAGIC_CAPACITY);
-    let mut curr_line_string = SafeString::new_with_capacity(MAGIC_CAPACITY);
+    let mut plain_string = String::with_capacity(MAGIC_CAPACITY);
+    let mut currline_string = String::with_capacity(MAGIC_CAPACITY);
     let mut empty_count: usize = 0;
 
     while empty_count < 2 {
-        std::io::stdin().read_line(&mut curr_line_string)?;
-        pop_newlines_from_string_mut_ref(&mut curr_line_string);
-        if curr_line_string.len() == 0 {
+        std::io::stdin().read_line(&mut currline_string)?;
+        pop_newlines_from_string_mut_ref(&mut currline_string);
+        if currline_string.is_empty() {
             empty_count += 1;
         } else {
             empty_count = 0;
         }
-        plain_string.push_str(&curr_line_string);
+        plain_string.push_str(&currline_string);
         plain_string.push('\n');
-        curr_line_string.clear();
+
+        write_volatile_to_all_elem_of_iter_to_default(unsafe {
+            currline_string.as_bytes_mut().iter_mut()
+        });
+        currline_string.clear();
     }
 
     pop_newlines_from_string_mut_ref(&mut plain_string);
@@ -68,6 +73,10 @@ fn encrypt(
             return Err(format!("Error during encryption: {}", err).into());
         }
     };
+
+    write_volatile_to_all_elem_of_iter_to_default(unsafe {
+        plain_string.as_bytes_mut().iter_mut()
+    });
 
     let cipher_bytestring = ByteString::new(cipher_bytes);
 
@@ -87,13 +96,13 @@ fn decrypt(
     cipher: &CipherV20241124,
     console_helper_mut_ref: &mut ConsoleHelper,
 ) -> Result<(), Box<dyn Error>> {
-    let mut info_string = SafeString::new_with_capacity(MAGIC_CAPACITY);
+    let mut info_string = String::with_capacity(MAGIC_CAPACITY);
     std::io::stdin().read_line(&mut info_string)?;
     pop_newlines_from_string_mut_ref(&mut info_string);
 
     let cipher_bytestring = ByteString::try_from(info_string.as_str())?;
 
-    let plaintext_bytes = match cipher.decrypt(cipher_bytestring.as_bytes()) {
+    let mut plaintext_bytes = match cipher.decrypt(cipher_bytestring.as_bytes()) {
         Ok(bytes) => bytes,
         Err(err) => {
             return Err(format!("Error when decrypting: {}", err).into());
@@ -101,7 +110,9 @@ fn decrypt(
     };
 
     console_helper_mut_ref.print_tty(plaintext_bytes.as_slice())?;
+    write_volatile_to_all_elem_of_iter_to_default(plaintext_bytes.iter_mut());
     console_helper_mut_ref.print_tty(b"\n")?;
+
     Ok(())
 }
 
@@ -111,15 +122,16 @@ fn hash(
 ) -> Result<(), Box<dyn Error>> {
     let mut hasher = Sha3_256::new();
     DynDigest::update(&mut hasher, cipher_key_bytes);
-    let mut input_string = SafeString::new_with_capacity(MAGIC_CAPACITY);
+    let mut input_string = String::with_capacity(MAGIC_CAPACITY);
 
     std::io::stdin().read_line(&mut input_string)?;
     pop_newlines_from_string_mut_ref(&mut input_string);
+
     for part_str_ref in input_string.split(' ') {
         if part_str_ref.is_empty() {
             continue;
         }
-        DynDigest::update(&mut hasher, part_str_ref.as_bytes());
+        Digest::update(&mut hasher, part_str_ref.as_bytes());
     }
     let hash_res_bytes_vec = hasher.finalize().to_vec();
     let output_bytestring = ByteString::new(hash_res_bytes_vec);
@@ -142,27 +154,27 @@ fn run() -> Result<(), Box<dyn Error>> {
     }
 
     console_helper.print_tty(INPUT_SECRET_KEY_PROMPT_STR_REF)?;
-    let mut cipher_key_bytes = read_secret_key_line_in_private()?;
+    let mut cipher_key_bytes = read_secret_key_from_line_in_private()?;
     let mut cipher = CipherV20241124::new_wtih_cipher_key_bytes(cipher_key_bytes);
 
-    let mut line_string = SafeString::new_with_capacity(MAGIC_CAPACITY);
+    let mut line_string = String::with_capacity(MAGIC_CAPACITY);
 
     while std::io::stdin().read_line(&mut line_string).is_ok() {
         pop_newlines_from_string_mut_ref(&mut line_string);
-        if *line_string == "d" || *line_string == "decrypt" {
+        if line_string == "d" || line_string == "decrypt" {
             if let Err(e) = decrypt(&cipher, &mut console_helper) {
                 console_helper.print_tty(e.to_string().as_bytes())?;
                 console_helper.print_tty(b"\n")?;
             }
-        } else if *line_string == "e" || *line_string == "encrypt" {
+        } else if line_string == "e" || line_string == "encrypt" {
             encrypt(&cipher, &mut console_helper, false)?;
-        } else if *line_string == "h" || *line_string == "hash" {
+        } else if line_string == "h" || line_string == "hash" {
             hash(&cipher_key_bytes, &mut console_helper)?;
-        } else if *line_string == "mde" || *line_string == "markdown_encrypt" {
+        } else if line_string == "mde" || line_string == "markdown_encrypt" {
             encrypt(&cipher, &mut console_helper, true)?;
-        } else if *line_string == "s" || *line_string == "switch" {
+        } else if line_string == "s" || line_string == "switch" {
             console_helper.print_tty(INPUT_SECRET_KEY_PROMPT_STR_REF)?;
-            cipher_key_bytes = read_secret_key_line_in_private()?;
+            cipher_key_bytes = read_secret_key_from_line_in_private()?;
             cipher = CipherV20241124::new_wtih_cipher_key_bytes(cipher_key_bytes);
         } else {
             return Ok(());

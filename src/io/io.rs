@@ -19,4 +19,4 @@ pub use console_helper_mod::ConsoleHelper;
 
 #[path = "read_line_in_private.rs"]
 mod read_line_in_private_mod;
-pub use read_line_in_private_mod::read_line_in_private;
+pub use read_line_in_private_mod::{read_line_in_private, read_secret_key_from_line_in_private};

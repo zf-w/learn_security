@@ -21,7 +21,9 @@ use chacha20poly1305::{
 };
 use sha3::digest::generic_array::GenericArray;
 
-use zhifeng_security_util::{io::ConsoleHelper, read_secret_key_line_in_private, ByteString};
+use zhifeng_security_util::{
+    io::read_secret_key_from_line_in_private, io::ConsoleHelper, ByteString,
+};
 
 mod util;
 use util::save_file;
@@ -65,8 +67,8 @@ const NONCE_BYTES_LEN: usize = 12;
 fn run(args_vec_ref: &[String]) -> Result<(), Box<dyn Error>> {
     let mut console_helper = ConsoleHelper::new()?;
 
-    console_helper.print_tty(b"Secret Key (will not show): ")?;
-    let cipher_key_bytes = read_secret_key_line_in_private()?;
+    console_helper.print_tty(b"Passphrase: ")?;
+    let cipher_key_bytes = read_secret_key_from_line_in_private()?;
     let cipher = ChaCha20Poly1305::new(&cipher_key_bytes);
     let nonce_bytes: Nonce = GenericArray::clone_from_slice(&cipher_key_bytes[..NONCE_BYTES_LEN]); // 96-bits;
 
